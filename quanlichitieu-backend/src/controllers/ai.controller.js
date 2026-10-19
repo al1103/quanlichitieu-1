@@ -14,7 +14,9 @@ const { callOllama, estimateCost } = require('../config/ollama');
 
 function cleanAiResponse(text) {
   if (!text || typeof text !== 'string') return '';
-  let str = text.replace(/\|\s*\|/g, '\n');
+  // Bỏ bọc code block markdown nếu có để tránh lỗi font chữ monospace
+  let str = text.replace(/```(?:markdown)?/gi, '').replace(/```/g, '');
+  str = str.replace(/\|\s*\|/g, '\n');
   str = str.replace(/([^\n])\s+(\d+\.\s+)/g, '$1\n$2');
   str = str.replace(/\*\*/g, '');
 
@@ -30,8 +32,8 @@ function cleanAiResponse(text) {
 function buildSystemPrompt(summary) {
   return (
     'Bạn là trợ lý tài chính cá nhân, luôn trả lời ngắn gọn bằng tiếng Việt.\n' +
-    'Không dùng bảng biểu, không dùng ký tự |, không dùng ký tự **.\n' +
-    'Trình bày các ý bằng văn bản tự nhiên hoặc gạch đầu dòng -.\n' +
+    'Không dùng bảng biểu, không dùng ký tự |, không dùng ký tự **, không dùng khối mã ```.\n' +
+    'Trình bày các ý bằng 3-4 gạch đầu dòng "-" súc tích, ngắn gọn, đi thẳng vào trọng tâm.\n' +
     `Dưới đây là số liệu thu chi hiện tại của người dùng:\n${summary || '(chưa có dữ liệu)'}`
   );
 }
@@ -68,7 +70,7 @@ exports.getInsights = asyncHandler(async (req, res) => {
 
   const messages = [
     { role: 'system', content: buildSystemPrompt(String(req.body.summary)) },
-    { role: 'user', content: 'Hãy phân tích chi tiết tình hình tài chính của tôi theo từng tháng, so sánh sự thay đổi giữa các tháng gần nhất, chỉ ra các khoản chi tiêu nhiều nhất và đưa ra lời khuyên cụ thể để tối ưu chi tiêu và tiết kiệm.' },
+    { role: 'user', content: 'Hãy đưa ra 3-4 nhận xét ngắn gọn (mỗi ý 1 dòng, có gạch đầu dòng "-"), chỉ ra danh mục chi nhiều nhất và 1 gợi ý tiết kiệm cụ thể.' },
   ];
   const result = await callOllama(messages);
   await logUsage(req.userId, 'ai-insights', result);

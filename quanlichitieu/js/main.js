@@ -828,6 +828,9 @@ document.addEventListener("layoutLoaded", () => {
         const insight = await apiGetAiInsight(summary);
         const cleanInsight = typeof cleanAiResponse === "function" ? cleanAiResponse(insight) : insight;
         if (window.marked) {
+          if (typeof marked.setOptions === "function") {
+            marked.setOptions({ breaks: true, gfm: true });
+          }
           contentEl.innerHTML = marked.parse(cleanInsight);
         } else {
           contentEl.textContent = cleanInsight;

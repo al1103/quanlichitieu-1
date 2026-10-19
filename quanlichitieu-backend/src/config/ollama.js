@@ -21,8 +21,8 @@ async function resolveModel() {
  * Trả về: { model, content, promptTokens, completionTokens }
  */
 async function callOllama(messages) {
-  // Lấy API key từ file .env của backend
-  const apiKey = process.env.OLLAMA_API_KEY;
+  // Lấy API key từ file .env của backend hoặc trong DB settings
+  const apiKey = process.env.OLLAMA_API_KEY || (await getSetting('ollama_api_key'));
   if (!apiKey) {
     throw new ApiError(500, 'Chưa cấu hình API key AI trên server. Vui lòng điền OLLAMA_API_KEY vào file .env.');
   }

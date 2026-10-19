@@ -203,6 +203,65 @@
     transition: width 0.4s ease;
 }
 
+#ai-chat-messages,
+#ai-insight-content {
+    font-family: 'Be Vietnam Pro', 'Inter', system-ui, -apple-system, sans-serif !important;
+    line-height: 1.65;
+    color: #33302a;
+}
+
+#ai-insight-content p,
+#ai-chat-messages p {
+    margin-bottom: 0.5rem;
+}
+
+#ai-insight-content p:last-child,
+#ai-chat-messages p:last-child {
+    margin-bottom: 0;
+}
+
+#ai-insight-content ul,
+#ai-chat-messages ul {
+    list-style-type: disc;
+    margin-left: 1.25rem;
+    margin-top: 0.35rem;
+    margin-bottom: 0.5rem;
+}
+
+#ai-insight-content ol,
+#ai-chat-messages ol {
+    list-style-type: decimal;
+    margin-left: 1.25rem;
+    margin-top: 0.35rem;
+    margin-bottom: 0.5rem;
+}
+
+#ai-insight-content li,
+#ai-chat-messages li {
+    margin-bottom: 0.3rem;
+}
+
+#ai-insight-content strong,
+#ai-insight-content b,
+#ai-chat-messages strong,
+#ai-chat-messages b {
+    font-weight: 600;
+    color: #22201b;
+}
+
+#ai-insight-content pre,
+#ai-insight-content code,
+#ai-chat-messages pre,
+#ai-chat-messages code {
+    font-family: inherit !important;
+    background: transparent;
+    padding: 0;
+    border: none;
+    font-size: inherit;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
 #ai-chat-messages table,
 #ai-insight-content table {
     width: 100%;

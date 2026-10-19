@@ -6,7 +6,9 @@
 
 function cleanAiResponse(text) {
   if (!text || typeof text !== 'string') return '';
-  let str = text.replace(/\|\s*\|/g, '\n');
+  // Bỏ bọc code block markdown nếu có để tránh lỗi font chữ monospace
+  let str = text.replace(/```(?:markdown)?/gi, '').replace(/```/g, '');
+  str = str.replace(/\|\s*\|/g, '\n');
   str = str.replace(/([^\n])\s+(\d+\.\s+)/g, '$1\n$2');
   str = str.replace(/\*\*/g, '');
 
