@@ -9,7 +9,7 @@ const path = require('path');
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const TEST_BASE_URL = process.env.TEST_BASE_URL || 'http://localhost:3001';
+const TEST_BASE_URL = process.env.TEST_BASE_URL || (process.env.PORT ? `http://localhost:${process.env.PORT}` : 'http://localhost:3000');
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@chilotus.com';
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || 'admin123';
 
@@ -90,6 +90,9 @@ async function req(method, pathUrl, { token, body } = {}) {
   const nextMonthKey = now.getMonth() === 11 
     ? `${now.getFullYear() + 1}-01` 
     : `${now.getFullYear()}-${pad2(now.getMonth() + 2)}`;
+  const prevMonthKey = now.getMonth() === 0
+    ? `${now.getFullYear() - 1}-12`
+    : `${now.getFullYear()}-${pad2(now.getMonth())}`;
 
   try {
     // ==========================================================
@@ -333,6 +336,14 @@ async function req(method, pathUrl, { token, body } = {}) {
       ok(allInMonth, 'Tất cả giao dịch phải thuộc tháng được lọc');
     });
 
+    await runTest('TX-11', 'Lọc giao dịch kết hợp theo Loại (CHI) và Danh mục ("Ăn uống")', async () => {
+      const { status, data } = await req('GET', '/api/transactions?type=CHI&category=Ăn uống', { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data) && data.length > 0, 'Danh sách giao dịch');
+      const allMatch = data.every((t) => t.type === 'CHI' && t.category === 'Ăn uống');
+      ok(allMatch, 'Tất cả kết quả phải có type=CHI và category=Ăn uống');
+    });
+
     // ==========================================================
     // MODULE 3: BUDGET ENGINE & THỪA / THIẾU
     // ==========================================================
@@ -405,6 +416,12 @@ async function req(method, pathUrl, { token, body } = {}) {
       eq(b.remaining, 0, 'Còn lại phải là 0 (không âm)');
       eq(b.percentUsed, 114, '% Đã dùng');
       eq(b.exceeded, true, 'Vượt định mức phải bật exceeded');
+    });
+
+    await runTest('BDG-07', 'Lọc ngân sách theo tháng tương lai trả về mảng rỗng nếu chưa thiết lập', async () => {
+      const { status, data } = await req('GET', `/api/budgets?month=${nextMonthKey}`, { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data) && data.length === 0, 'Ngân sách tháng tới chưa tạo phải rỗng');
     });
 
     // ==========================================================
@@ -490,6 +507,15 @@ async function req(method, pathUrl, { token, body } = {}) {
       const item = listRes.data.find((x) => x.id === data.id);
       eq(item.status, 'UPCOMING', 'Trạng thái');
       eq(item.isDeducted, false, 'Không được nhận nhầm là đã trừ');
+    });
+
+    await runTest('FIX-07', 'Lọc chi phí cố định theo tháng trả về danh sách kèm trạng thái hợp lệ', async () => {
+      const { status, data } = await req('GET', `/api/fixed-expenses?month=${currentMonthKey}`, { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data) && data.length > 0, 'Danh sách chi phí cố định');
+      const validStatuses = ['UPCOMING', 'PENDING', 'DEDUCTED', 'MISSED'];
+      const allValid = data.every((f) => validStatuses.includes(f.status));
+      ok(allValid, 'Mọi khoản chi cố định phải có status hợp lệ trong tháng');
     });
 
     // ==========================================================
@@ -593,6 +619,54 @@ async function req(method, pathUrl, { token, body } = {}) {
       eq(data.goal.percentComplete, 40, '% Hoàn thành');
     });
 
+    await runTest('SAV-09', 'Validation: Nạp tiền vượt quá số dư tài khoản trả về 400', async () => {
+      const { data: bigGoal } = await req('POST', '/api/savings', {
+        token: userToken,
+        body: { name: 'Mua Nhà', targetAmount: 100000000 },
+      });
+      const { status, data } = await req('POST', `/api/savings/${bigGoal.id}/deposit`, {
+        token: userToken,
+        body: { amount: 50000000 },
+      });
+      eq(status, 400, 'HTTP status');
+      ok(data.error && data.error.includes('Số dư tài khoản không đủ'), 'Báo lỗi thiếu số dư');
+    });
+
+    await runTest('SAV-10', 'Validation: Nạp tiền vượt quá số tiền còn thiếu của mục tiêu trả về 400', async () => {
+      const { status, data } = await req('POST', `/api/savings/${goal2Id}/deposit`, {
+        token: userToken,
+        body: { amount: 4000000 },
+      });
+      eq(status, 400, 'HTTP status');
+      ok(data.error && data.error.includes('vượt quá số tiền còn thiếu'), 'Báo lỗi vượt quá số tiền còn thiếu');
+    });
+
+    await runTest('SAV-11', 'Phân bổ thặng dư có gán ngày thuộc tháng quá khứ cập nhật đúng thặng dư tháng đó', async () => {
+      const pastDate = `${prevMonthKey}-15T10:00:00.000Z`;
+      await req('POST', '/api/transactions', {
+        token: userToken,
+        body: { amount: 10000000, type: 'THU', category: 'Lương', description: 'Lương tháng trước', date: pastDate },
+      });
+
+      const { data: gData } = await req('POST', '/api/savings', {
+        token: userToken,
+        body: { name: 'Quỹ dự phòng tháng trước', targetAmount: 5000000 },
+      });
+      const tempGoalId = gData.id;
+
+      const depositPastDate = `${prevMonthKey}-28T12:00:00.000Z`;
+      const { status: depStatus } = await req('POST', `/api/savings/${tempGoalId}/deposit`, {
+        token: userToken,
+        body: { amount: 2000000, date: depositPastDate },
+      });
+      eq(depStatus, 200, 'HTTP status nạp tiền tháng trước');
+
+      const { data: sData } = await req('GET', `/api/stats/summary?month=${prevMonthKey}`, { token: userToken });
+      eq(sData.periodIncome, 10000000, 'Thu nhập tháng trước');
+      eq(sData.periodExpense, 2000000, 'Chi tiêu tháng trước tăng đúng 2M do nạp tiết kiệm');
+      eq(sData.monthSurplus, 8000000, 'Thặng dư tháng trước giảm tương ứng');
+    });
+
     // ==========================================================
     // MODULE 6: STATS, ANALYTICS & REPORTS
     // ==========================================================
@@ -621,6 +695,12 @@ async function req(method, pathUrl, { token, body } = {}) {
       ok(Array.isArray(data) && data.length === 6, 'Số tháng trả về phải là 6');
     });
 
+    await runTest('REP-04', 'Báo cáo cơ cấu chi tiêu cho tháng không có giao dịch trả về an toàn', async () => {
+      const { status, data } = await req('GET', '/api/stats/categories?type=CHI&month=2099-01', { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data), 'Kết quả phải là mảng an toàn');
+    });
+
     // ==========================================================
     // MODULE 7: SEARCH TRANSACTIONS
     // ==========================================================
@@ -643,6 +723,17 @@ async function req(method, pathUrl, { token, body } = {}) {
       const { status, data } = await req('GET', '/api/transactions?q=từ-khoá-hoàn-toàn-không-có-trong-db', { token: userToken });
       eq(status, 200, 'HTTP status');
       eq(data.length, 0, 'Kết quả tìm kiếm phải rỗng');
+    });
+
+    await runTest('SRC-04', 'Tìm kiếm theo từ khóa có dấu tiếng Việt khớp chính xác', async () => {
+      await req('POST', '/api/transactions', {
+        token: userToken,
+        body: { amount: 55000, type: 'CHI', category: 'Ăn uống', description: 'Cà phê sáng Highlands' },
+      });
+      const { status, data } = await req('GET', '/api/transactions?q=Cà+phê', { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data) && data.length > 0, 'Tìm thấy giao dịch tiếng Việt có dấu');
+      ok(data.some((t) => t.description.includes('Cà phê')), 'Mô tả chứa đúng từ khóa');
     });
 
     // ==========================================================
