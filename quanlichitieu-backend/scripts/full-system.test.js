@@ -207,6 +207,22 @@ async function req(method, pathUrl, { token, body } = {}) {
       userToken = newLogin.data.token;
     });
 
+    await runTest('AUTH-14', 'Validation: Đổi mật khẩu với mật khẩu mới < 6 ký tự trả về 400', async () => {
+      const { status } = await req('PUT', '/api/auth/password', {
+        token: userToken,
+        body: { oldPassword: 'matkhaumoi123', newPassword: '123' },
+      });
+      eq(status, 400, 'HTTP status 400 khi mật khẩu mới < 6 ký tự');
+    });
+
+    await runTest('AUTH-15', 'Validation: Cập nhật email sai định dạng trong hồ sơ trả về 400', async () => {
+      const { status } = await req('PUT', '/api/auth/profile', {
+        token: userToken,
+        body: { email: 'email-sai-dinh-dang' },
+      });
+      eq(status, 400, 'HTTP status 400 khi email không hợp lệ');
+    });
+
     // ==========================================================
     // MODULE 2: TRANSACTIONS & FINANCIAL CALCULATIONS
     // ==========================================================
@@ -344,6 +360,36 @@ async function req(method, pathUrl, { token, body } = {}) {
       ok(allMatch, 'Tất cả kết quả phải có type=CHI và category=Ăn uống');
     });
 
+    await runTest('TX-12', 'Lọc giao dịch theo khoảng ngày bắt đầu & kết thúc (startDate & endDate)', async () => {
+      const todayStr = now.toISOString().slice(0, 10);
+      const { status, data } = await req('GET', `/api/transactions?startDate=${todayStr}&endDate=${todayStr}`, { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data) && data.length > 0, 'Danh sách giao dịch trong ngày');
+    });
+
+    await runTest('TX-13', 'Validation: Sửa giao dịch không tồn tại trả về 404', async () => {
+      const fakeId = '507f1f77bcf86cd799439011';
+      const { status } = await req('PUT', `/api/transactions/${fakeId}`, {
+        token: userToken,
+        body: { amount: 500000 },
+      });
+      eq(status, 404, 'HTTP status');
+    });
+
+    await runTest('TX-14', 'Bảo mật IDOR: Không thể sửa giao dịch của người dùng khác', async () => {
+      const otherEmail = `test.other.${Date.now()}@chilotus.com`;
+      const otherRes = await req('POST', '/api/auth/register', {
+        body: { name: 'Other User', email: otherEmail, password: 'password123' },
+      });
+      const otherToken = otherRes.data.token;
+
+      const { status } = await req('PUT', `/api/transactions/${txIncomeId}`, {
+        token: otherToken,
+        body: { amount: 99999999 },
+      });
+      eq(status, 404, 'HTTP status 404 ngăn chặn IDOR chéo user');
+    });
+
     // ==========================================================
     // MODULE 3: BUDGET ENGINE & THỪA / THIẾU
     // ==========================================================
@@ -357,6 +403,8 @@ async function req(method, pathUrl, { token, body } = {}) {
       eq(status, 400, 'HTTP status limit <= 0');
     });
 
+    let budgetId;
+
     await runTest('BDG-02', 'Tạo ngân sách hợp lệ cho Ăn uống (Hạn mức 5.000.000 đ)', async () => {
       const { status, data } = await req('POST', '/api/budgets', {
         token: userToken,
@@ -365,6 +413,7 @@ async function req(method, pathUrl, { token, body } = {}) {
       eq(status, 201, 'HTTP status tạo ngân sách');
       eq(data.category, 'Ăn uống', 'Danh mục');
       eq(data.limitAmount, 5000000, 'Hạn mức');
+      budgetId = data.id;
     });
 
     await runTest('BDG-03', 'Validation: Tạo trùng ngân sách cùng danh mục trong tháng trả về 409', async () => {
@@ -422,6 +471,32 @@ async function req(method, pathUrl, { token, body } = {}) {
       const { status, data } = await req('GET', `/api/budgets?month=${nextMonthKey}`, { token: userToken });
       eq(status, 200, 'HTTP status');
       ok(Array.isArray(data) && data.length === 0, 'Ngân sách tháng tới chưa tạo phải rỗng');
+    });
+
+    await runTest('BDG-08', 'Cập nhật hạn mức ngân sách từ 5M lên 8M thành công', async () => {
+      const { status, data } = await req('PUT', `/api/budgets/${budgetId}`, {
+        token: userToken,
+        body: { limitAmount: 8000000 },
+      });
+      eq(status, 200, 'HTTP status');
+      eq(data.limitAmount, 8000000, 'Hạn mức sau khi sửa');
+    });
+
+    await runTest('BDG-09', 'Tạo và xóa ngân sách phụ thành công', async () => {
+      const { data: tempB } = await req('POST', '/api/budgets', {
+        token: userToken,
+        body: { category: 'Mua sắm', limitAmount: 3000000, month: currentMonthKey },
+      });
+      const { status } = await req('DELETE', `/api/budgets/${tempB.id}`, { token: userToken });
+      eq(status, 200, 'HTTP status xóa');
+    });
+
+    await runTest('BDG-10', 'Validation: Tạo ngân sách thiếu danh mục trả về 400', async () => {
+      const { status } = await req('POST', '/api/budgets', {
+        token: userToken,
+        body: { limitAmount: 2000000 },
+      });
+      eq(status, 400, 'HTTP status 400 khi thiếu danh mục');
     });
 
     // ==========================================================
@@ -518,6 +593,40 @@ async function req(method, pathUrl, { token, body } = {}) {
       ok(allValid, 'Mọi khoản chi cố định phải có status hợp lệ trong tháng');
     });
 
+    await runTest('FIX-08', 'Cập nhật khoản chi cố định sửa số tiền thành công', async () => {
+      const { data: tempF } = await req('POST', '/api/fixed-expenses', {
+        token: userToken,
+        body: { category: 'Giải trí', description: 'Netflix 4K', amount: 260000, deductDay: 10 },
+      });
+      const { status, data } = await req('PUT', `/api/fixed-expenses/${tempF.id}`, {
+        token: userToken,
+        body: { amount: 280000 },
+      });
+      eq(status, 200, 'HTTP status');
+      eq(data.amount, 280000, 'Số tiền sau khi sửa');
+    });
+
+    await runTest('FIX-09', 'Xóa khoản chi cố định thành công', async () => {
+      const { data: tempF } = await req('POST', '/api/fixed-expenses', {
+        token: userToken,
+        body: { category: 'Di chuyển', description: 'Vé xe buýt tháng', amount: 200000, deductDay: 5 },
+      });
+      const { status } = await req('DELETE', `/api/fixed-expenses/${tempF.id}`, { token: userToken });
+      eq(status, 200, 'HTTP status xóa chi phí cố định');
+    });
+
+    await runTest('FIX-10', 'Validation: Sửa chi phí cố định với deductDay > 31 trả về 400', async () => {
+      const { data: tempF } = await req('POST', '/api/fixed-expenses', {
+        token: userToken,
+        body: { category: 'Hóa đơn', description: 'Tiền nước', amount: 150000, deductDay: 15 },
+      });
+      const { status } = await req('PUT', `/api/fixed-expenses/${tempF.id}`, {
+        token: userToken,
+        body: { deductDay: 35 },
+      });
+      eq(status, 400, 'HTTP status 400 khi deductDay > 31');
+    });
+
     // ==========================================================
     // MODULE 5: SAVINGS GOALS & BALANCE ALLOCATION
     // ==========================================================
@@ -549,7 +658,7 @@ async function req(method, pathUrl, { token, body } = {}) {
       eq(status, 400, 'HTTP status');
     });
 
-    let goal1Id, goal2Id;
+    let goal1Id, goal2Id, tempGoalId;
 
     await runTest('SAV-04', 'Tạo mục tiêu tiết kiệm hợp lệ (Laptop mới 15.000.000 đ)', async () => {
       const futureDate = new Date();
@@ -652,7 +761,7 @@ async function req(method, pathUrl, { token, body } = {}) {
         token: userToken,
         body: { name: 'Quỹ dự phòng tháng trước', targetAmount: 5000000 },
       });
-      const tempGoalId = gData.id;
+      tempGoalId = gData.id;
 
       const depositPastDate = `${prevMonthKey}-28T12:00:00.000Z`;
       const { status: depStatus } = await req('POST', `/api/savings/${tempGoalId}/deposit`, {
@@ -665,6 +774,29 @@ async function req(method, pathUrl, { token, body } = {}) {
       eq(sData.periodIncome, 10000000, 'Thu nhập tháng trước');
       eq(sData.periodExpense, 2000000, 'Chi tiêu tháng trước tăng đúng 2M do nạp tiết kiệm');
       eq(sData.monthSurplus, 8000000, 'Thặng dư tháng trước giảm tương ứng');
+    });
+
+    await runTest('SAV-12', 'Cập nhật mục tiêu tiết kiệm sửa tên và số tiền mục tiêu thành công', async () => {
+      const { status, data } = await req('PUT', `/api/savings/${tempGoalId}`, {
+        token: userToken,
+        body: { name: 'Quỹ khẩn cấp gia đình', targetAmount: 6000000 },
+      });
+      eq(status, 200, 'HTTP status');
+      eq(data.name, 'Quỹ khẩn cấp gia đình', 'Tên sau khi sửa');
+      eq(data.targetAmount, 6000000, 'Target sau khi sửa');
+    });
+
+    await runTest('SAV-13', 'Xóa mục tiêu tiết kiệm thành công', async () => {
+      const { status } = await req('DELETE', `/api/savings/${tempGoalId}`, { token: userToken });
+      eq(status, 200, 'HTTP status xóa mục tiêu');
+    });
+
+    await runTest('SAV-14', 'Validation: Nạp tiền vào mục tiêu với số tiền <= 0 trả về 400', async () => {
+      const { status } = await req('POST', `/api/savings/${goal2Id}/deposit`, {
+        token: userToken,
+        body: { amount: 0 },
+      });
+      eq(status, 400, 'HTTP status 400 khi nạp amount <= 0');
     });
 
     // ==========================================================
@@ -734,6 +866,33 @@ async function req(method, pathUrl, { token, body } = {}) {
       eq(status, 200, 'HTTP status');
       ok(Array.isArray(data) && data.length > 0, 'Tìm thấy giao dịch tiếng Việt có dấu');
       ok(data.some((t) => t.description.includes('Cà phê')), 'Mô tả chứa đúng từ khóa');
+    });
+
+    await runTest('SRC-05', 'Tìm kiếm giao dịch kết hợp từ khóa và loại THU trả đúng kết quả', async () => {
+      const { status, data } = await req('GET', '/api/transactions?q=Lương&type=THU', { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data) && data.length > 0, 'Tìm thấy giao dịch');
+      ok(data.every((t) => t.type === 'THU' && (t.description?.includes('Lương') || t.category?.includes('Lương'))), 'Khớp cả loại THU và từ khóa');
+    });
+
+    await runTest('CAT-01', 'Lấy danh mục hệ thống trả về đầy đủ các danh mục cơ bản', async () => {
+      const { status, data } = await req('GET', '/api/categories', { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data) && data.length >= 6, 'Có ít nhất 6 danh mục chuẩn');
+      const names = data.map((c) => c.name);
+      ok(names.includes('Ăn uống') && names.includes('Lương'), 'Chứa các danh mục thiết yếu');
+    });
+
+    await runTest('NOTI-01', 'Lấy danh sách thông báo người dùng trả về mảng hợp lệ', async () => {
+      const { status, data } = await req('GET', '/api/notifications', { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(Array.isArray(data), 'Kết quả thông báo phải là mảng');
+    });
+
+    await runTest('NOTI-02', 'Đánh dấu đã đọc tất cả thông báo thành công', async () => {
+      const { status, data } = await req('PUT', '/api/notifications/read-all', { token: userToken });
+      eq(status, 200, 'HTTP status');
+      ok(data && (data.message || data.success), 'Thông báo đánh dấu thành công');
     });
 
     // ==========================================================
