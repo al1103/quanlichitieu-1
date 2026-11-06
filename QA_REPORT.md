@@ -91,3 +91,4 @@
 - [x] Nội dung không bị mất sau chỉnh sửa (khớp chính xác 12 mục tiêu và kịch bản nghiệp vụ).
 - [x] PDF cuối cùng hiển thị đúng chuẩn in ấn.
 - [x] File DOCX cuối cùng mở được và chỉnh sửa bình thường trong Microsoft Word.
+
