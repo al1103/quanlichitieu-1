@@ -103,7 +103,7 @@
 <mxCell id="e_inc_0" value="&#171;include&#187;" style="endArrow=open;endSize=8;endFill=0;dashed=1;html=1;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="hub" target="sub_inc_0">
   <mxGeometry relative="1" as="geometry"/>
 </mxCell>
-<mxCell id="sub_inc_1" value="Xem chi tiết giao dịch" style="ellipse;whiteSpace=wrap;html=1;shadow=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=13;fontStyle=0;" vertex="1" parent="1">
+<mxCell id="sub_inc_1" value="Tìm kiếm &amp; lọc giao dịch" style="ellipse;whiteSpace=wrap;html=1;shadow=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=13;fontStyle=0;" vertex="1" parent="1">
   <mxGeometry x="580" y="210" width="180" height="55" as="geometry"/>
 </mxCell>
 <mxCell id="e_inc_1" value="&#171;include&#187;" style="endArrow=open;endSize=8;endFill=0;dashed=1;html=1;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="hub" target="sub_inc_1">
@@ -355,7 +355,7 @@
 <mxCell id="e_inc_1" value="&#171;include&#187;" style="endArrow=open;endSize=8;endFill=0;dashed=1;html=1;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="hub" target="sub_inc_1">
   <mxGeometry relative="1" as="geometry"/>
 </mxCell>
-<mxCell id="sub_ext_2" value="Cập nhật thông tin" style="ellipse;whiteSpace=wrap;html=1;shadow=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=13;fontStyle=0;" vertex="1" parent="1">
+<mxCell id="sub_ext_2" value="Đăng ký tài khoản" style="ellipse;whiteSpace=wrap;html=1;shadow=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=13;fontStyle=0;" vertex="1" parent="1">
   <mxGeometry x="580" y="300" width="180" height="55" as="geometry"/>
 </mxCell>
 <mxCell id="e_ext_2" value="&#171;extend&#187;" style="endArrow=open;endSize=8;endFill=0;dashed=1;html=1;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="sub_ext_2" target="hub">
@@ -402,7 +402,7 @@
 <mxCell id="e_ext_2" value="&#171;extend&#187;" style="endArrow=open;endSize=8;endFill=0;dashed=1;html=1;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="sub_ext_2" target="hub">
   <mxGeometry relative="1" as="geometry"/>
 </mxCell>
-<mxCell id="sub_ext_3" value="Quản lý danh mục chi tiêu" style="ellipse;whiteSpace=wrap;html=1;shadow=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=13;fontStyle=0;" vertex="1" parent="1">
+<mxCell id="sub_ext_3" value="Cấu hình trợ lý AI" style="ellipse;whiteSpace=wrap;html=1;shadow=1;fillColor=#ffffff;strokeColor=#000000;strokeWidth=1.5;fontSize=13;fontStyle=0;" vertex="1" parent="1">
   <mxGeometry x="580" y="390" width="180" height="55" as="geometry"/>
 </mxCell>
 <mxCell id="e_ext_3" value="&#171;extend&#187;" style="endArrow=open;endSize=8;endFill=0;dashed=1;html=1;strokeColor=#000000;fontSize=12;labelBackgroundColor=#ffffff;" edge="1" parent="1" source="sub_ext_3" target="hub">
